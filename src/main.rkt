@@ -4,6 +4,7 @@
 (require racket/future)
 (require "photos.rkt")
 (require "lib.rkt")
+(require "widgets.rkt")
 
 
 (define thumbs-dir "/Users/agiardina/Desktop/agallery/60")
@@ -12,28 +13,58 @@
                           (directory-list thumbs-dir)))
 
 
-(define n-thumbs (vector-length (list->vector thumbs-files)))
+(define n-thumbs (vector-length photos-ids))
 
 (define frame (new frame% [label "Photo Gallery"]
 						  [style (list 'no-resize-border 'fullscreen-button)]))
 
 (define main-panel (new vertical-pane% [parent frame]))
-(define toolbar (new horizontal-panel% [parent main-panel]
-									  [min-height 50]
+(define toolbar-pane (new pane% [parent main-panel]
+									  [min-height 38]
 									  [stretchable-height #f]))
+(define toolbar-back (new canvas% [parent toolbar-pane] 
+									[style (list 'transparent)]
+									[paint-callback (lambda (canvas dc) 
+											(send dc set-brush (make-color 42 47 59) 'solid)
+											(send dc set-brush gradient-brush)
+											(send dc set-pen "black" 1 'transparent)
+											(send dc draw-rectangle 0 0 (send canvas get-width) (send canvas get-height))
+											(send dc set-pen (make-color 178 178 178) 1 'solid)
+											(send dc draw-line 0 (- (send canvas get-height) 1) 
+															   (send canvas get-width) (- (send canvas get-height) 1))
+											)]))
+(define toolbar (new horizontal-panel% [parent toolbar-pane] 
+        [border 2]
+        [stretchable-height #f]
+        [alignment (list 'left 'center)]))
+
+(make-full-spacer toolbar)
+(make-toolbar-button toolbar "favorite" displayln)
+(make-toolbar-button toolbar "add" displayln)
+
 (define body (new horizontal-panel% [parent main-panel]))
 (define sidebar-pane (new pane% [parent body] 
 							[min-width 200]))
 (define sidebar-back (new canvas% [parent sidebar-pane] 
 									[min-width 200]
 									[stretchable-width #f]
-									[paint-callback (lambda (canvas dc) 
-											(send dc set-brush (make-color 42 47 59) 'solid)
-											(send dc draw-rectangle 0 0 (send canvas get-width) (send canvas get-height)))]))
+									[style (list 'transparent)]
+									; [paint-callback (lambda (canvas dc) 
+									; 		(displayln "pa")
+									; 		; (send dc set-brush (make-color 42 47 59) 'solid)
+									; 		; (send dc set-brush gradient-brush)
+									; 		(send dc draw-rectangle 0 0 (send canvas get-width) (send canvas get-height))
+									; 		)]
+
+									))
 
 (define sidebar (new vertical-panel% [parent sidebar-pane]))
-(define button (new button% [parent sidebar] [label "Prova"]))
-(define label (new message% [parent sidebar] [label "Prova"]))
+(define gallery-label (new sidebar-title% [parent sidebar] [label "Gallery"]))
+(define photos-label (new sidebar-item% [parent sidebar] [label "Photos"]))
+(define albums-label (new sidebar-title% [parent sidebar] [label "Albums"]))
+
+; (define button (new button% [parent sidebar] [label "Prova"]))
+; (define label (new message% [parent sidebar] [label "Prova"]))
 
 (define thumbs-vector (make-parameter '()))
 (define current-photo (make-parameter #f))
@@ -53,11 +84,11 @@
 (define (paint-thumbs dc canvas)
 	(send dc clear)
 	(for ([t (thumbs-vector)])
-		(when t
+      (when (and t (not (void? t)))
 			(let ([id (hash-ref t "id")])
 				(send dc draw-bitmap (hash-ref t "bitmap") (hash-ref t "x") (hash-ref t "y"))
 				(when (eq? id (current-photo))
-					(send dc set-brush "bkack" 'transparent)
+					(send dc set-brush "black" 'transparent)
 					(send dc set-pen (make-color 37 101 217) 3 'solid)
 					(send dc set-smoothing 'smoothed)
 					(send dc draw-rounded-rectangle (- (hash-ref t "x") 3)
@@ -66,8 +97,7 @@
 											(+ (hash-ref t "height") 6)
 											-0.025
 											)))))
-
-	(time))
+	)
 
 (define (paint-photo dc canvas)
 	(let* ([photo (get-photo (current-photo) 960)]
@@ -111,18 +141,14 @@
 
 (define (paint canvas scroll-y)
 
-	;(time #f)
 	(let* ([min-width (* n-cols col-width)]
 		   [min-height (* (- n-rows 1) row-height)]
 		   [above-rows (quotient scroll-y row-height)]
 		   [above-thumbs (* above-rows n-cols)])
 
-		; (vector-fill! thumbs-vector #f)
-
 		(kill-thread photo-thread) 
 		(set! photo-thread (make-photo-thread))
 		(thread-suspend photo-thread)
-
 		(thumbs-vector 
 			(for/fold 
 				([acc '()]) 
@@ -152,8 +178,9 @@
 		    						))))))))
 
 		(send canvas refresh-now)
+
 		(thread-resume photo-thread)
-		(thread-send photo-thread 		
+        (thread-send photo-thread 		
 			(map 
 				(lambda (t) (hash-ref t "id"))
 				(filter 
