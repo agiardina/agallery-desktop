@@ -3,43 +3,35 @@
 (require net/url)
 (require json)
 (require racket/draw)
-(require racket/future)
-(require future-visualizer/trace)
-(require future-visualizer)
 (require "config.rkt")
 (require "lib.rkt")
+(require db)
 
 
+(define db-conn (sqlite3-connect #:database (string-append base-path "/db")))
 (define cache-60 (make-hash))
 (define cache-320 (make-hash))
 
-(define (get-json url)
-   (call/input-url (string->url url)
-                   get-pure-port
-                   (compose string->jsexpr port->string)))
-
-(define (fetch url)
-  (call/input-url (string->url url)
-                  get-pure-port
-                  port->string))
-
 (define (cache-photo-path id size)
-	(string-append base-path "/" (number->string size) "/" id ".jpg"))
+  (string-append thumbs-path "/" (number->string size) "/" (number->string id) ".jpg"))
 
 (define (download-photo id size)
 	(let ([file-url (format download-url id size)]
 		  [file-path (cache-photo-path id size)])
 		(displayln (format "Downloading ~a with resolution ~a." id size))
 		(call-with-output-file file-path
-	  		(lambda (p) 
-	  			(display (port->bytes (get-pure-port (string->url file-url))) p))
-	  		#:exists 'replace)))
+					  		(lambda (p) 
+					  			(display (port->bytes (get-pure-port (string->url file-url))) p))
+					  		#:exists 'replace)
 
-(define photos-ids (list->vector 
-	(hash-ref (get-json all-photos-api) 'photos)))
+		))
+
+(define photos-ids  (list->vector (query-list db-conn "select id from photos order by id desc")))
+
 
 (define (preload-photos)
-	(for/async ([id photos-ids])
+
+  (for/async ([id photos-ids])
 		(get-photo id 60))
 	(time)
 	(displayln "preload completed"))
@@ -53,7 +45,10 @@
 					(when (eq? size 60) (hash-set! cache-60 id (scale-bitmap bitmap 160)))
 					(when (eq? size 320) (hash-set! cache-320 id (scale-bitmap bitmap 160)))
 					bitmap)]
-		[else (download-photo id size) (get-photo id size)]))
+		[else
+                 (displayln (string-append "Photo not found" (cache-photo-path id size)))
+                 (make-bitmap 160 160)
+                 ]))
 
 (define (get-photo-by-pos pos size)
 	(get-photo (vector-ref photos-ids pos) size))
@@ -72,6 +67,7 @@
 (define (id->pos id)
 	(vector-member id photos-ids))
 
-(thread (lambda () (preload-photos)))
+; (thread (lambda () (preload-photos)))
+; (preload-photos)
 
-(provide pos->id id->pos get-photo get-photo-by-pos get-best-thumb-by-pos photos-ids)
+(provide pos->id id->pos get-photo get-photo-by-pos get-best-thumb-by-pos photos-ids download-photo)

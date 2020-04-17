@@ -69,35 +69,42 @@
 (define n-threads 10)
 
 (define (import-files host user pass files cb)
+  
+  (make-directory* (string-append base-path "/tmp"))
+  (make-directory* (string-append thumbs-path "/60"))
+  (make-directory* (string-append thumbs-path "/320"))
+  (make-directory* (string-append thumbs-path "/960"))    
+  
   (define threads-pool (make-vector n-threads))
-  (define (import-file path url)
+  
+  (define (import-file path url cb)
     (thread
      (lambda ()
-       (let* ((filename (file-name-from-path path))
-              (bmp (read-bitmap path))
+       (let* ((bmp (read-bitmap path))
               (info (bmp->info path bmp))
-              [width (hash-ref info 'width)]
-              [height (hash-ref info 'height)]
-              [size (hash-ref info 'size)]
-              [date-time-original (hash-ref info 'date-time-original)]
+              (width (hash-ref info 'width))
+              (height (hash-ref info 'height))
+              (size (hash-ref info 'size))
+              (date-time-original (hash-ref info 'date-time-original))
               (exif (any->string (hash-ref info 'exif)))
               (t60 (scale-bitmap bmp 60))
               (t320 (scale-bitmap bmp 320))
               (t960 (scale-bitmap bmp 960)))
-         (send t60 save-file (format cache-path 60 filename) 'jpeg)
-         (send t320 save-file (format cache-path 320 filename) 'jpeg)
-         (send t960 save-file (format cache-path 960 filename) 'jpeg)
 
          (query-exec db-conn (insert #:into photos
-                             #:set
-                             [path ,url]
-                             [origin "nextcloud"]
-                             [width ,width]
-                             [height ,height]
-                             [size ,size]
-                             [date_time_original ,date-time-original]
-                             [exif ,exif]
-                             ))
+                                     #:set
+                                     [path ,url]
+                                     [origin "nextcloud"]
+                                     [width ,width]
+                                     [height ,height]
+                                     [size ,size]
+                                     [date_time_original ,date-time-original]
+                                     [exif ,exif]))
+         (let ((filename (query-value db-conn "SELECT last_insert_rowid()")))
+           (send t60 save-file (format cache-path 60 filename) 'jpeg)
+           (send t320 save-file (format cache-path 320 filename) 'jpeg)
+           (send t960 save-file (format cache-path 960 filename) 'jpeg))
+         
          (delete-file path)
          (cb)
          ))))
@@ -124,7 +131,7 @@
                                  (call-with-output-file path #:exists 'truncate
                                    (lambda (out) (copy-port in out)))
                                  (displayln (format "Download with thread ~a completed"i))
-                                 (import-file path url)))
+                                 (import-file path url cb)))
                              (loop))))))
   
   (for ([url files]
