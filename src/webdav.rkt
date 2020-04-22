@@ -6,12 +6,12 @@
 (require "config.rkt")
 (require "lib.rkt")
 (require "bitmap.rkt")
+(require "db.rkt")
 (require racket/draw)
 (require racket/path)
 (require sql)
 (require db)
 
-(define db-conn (sqlite3-connect #:database (string-append base-path "/db")))
 
 (define search "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
  <d:searchrequest xmlns:d=\"DAV:\" xmlns:oc=\"http://owncloud.org/ns\">

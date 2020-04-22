@@ -15,16 +15,6 @@
 (define (cache-photo-path id size)
   (string-append thumbs-path "/" (number->string size) "/" (number->string id) ".jpg"))
 
-(define (download-photo id size)
-	(let ([file-url (format download-url id size)]
-		  [file-path (cache-photo-path id size)])
-		(displayln (format "Downloading ~a with resolution ~a." id size))
-		(call-with-output-file file-path
-					  		(lambda (p) 
-					  			(display (port->bytes (get-pure-port (string->url file-url))) p))
-					  		#:exists 'replace)
-
-		))
 
 (define photos-ids  (list->vector (query-list db-conn "select id from photos order by id desc")))
 
@@ -70,4 +60,4 @@
 ; (thread (lambda () (preload-photos)))
 ; (preload-photos)
 
-(provide pos->id id->pos get-photo get-photo-by-pos get-best-thumb-by-pos photos-ids download-photo)
+(provide pos->id id->pos get-photo get-photo-by-pos get-best-thumb-by-pos photos-ids )

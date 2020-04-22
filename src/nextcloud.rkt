@@ -112,5 +112,4 @@
   
   (send frame show #t))
 
-(show-nextcloud-config)
-
+(provide show-nextcloud-config)
